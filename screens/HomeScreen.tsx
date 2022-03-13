@@ -14,7 +14,6 @@ export default function HomeScreen({ navigation }) {
           })
         }
       />
-      <Button title="Test screen" onPress={() => navigation.navigate('Test')} />
     </View>
   );
 }
