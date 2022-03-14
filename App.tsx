@@ -7,6 +7,7 @@ import TransactionRequestScreen from './screens/TransactionRequestScreen';
 // Seems to be required for react-native-svg for some reason
 // Put it here because you get a cycle warning if this is in index.js
 import { fetch as fetchPolyfill } from 'whatwg-fetch';
+import AccountsScreen from './screens/AccountsScreen';
 global.fetch = fetchPolyfill;
 
 
@@ -25,6 +26,11 @@ function App() {
           name="TransactionRequest"
           component={TransactionRequestScreen}
           options={{ title: 'Solana Pay' }}
+        />
+        <Stack.Screen
+          name="Accounts"
+          component={AccountsScreen}
+          options={{ title: 'Accounts' }}
         />
       </Stack.Navigator>
     </NavigationContainer>

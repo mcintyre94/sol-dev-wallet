@@ -14,6 +14,10 @@ export default function HomeScreen({ navigation }) {
           })
         }
       />
+      <Button
+        title="Accounts"
+        onPress={() => navigation.navigate('Accounts')}
+      />
     </View>
   );
 }
