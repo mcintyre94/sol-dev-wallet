@@ -7,7 +7,7 @@ import base58 from 'bs58';
 import ImageUri from '../components/ImageUri';
 
 interface TransactionRequestStatus {
-  type: 'FetchingDetails' | 'FetchedDetails' | 'FetchingTransaction' | 'SimulatingTransaction' | 'SimulatedTransaction',
+  type: 'FetchingDetails' | 'FetchedDetails' | 'FetchingTransaction' | 'SimulatingTransaction' | 'SimulatedTransaction' | 'SendingTransaction' | 'SentTransaction',
 }
 
 const FetchingDetails: TransactionRequestStatus = {
@@ -40,7 +40,26 @@ interface SimulatedTransaction extends TransactionRequestStatus {
   feeInSol: number,
   label: string,
   icon: string,
-  message?: string
+  message?: string,
+  transaction: Transaction,
+}
+
+interface SendingTransaction extends TransactionRequestStatus {
+  type: 'SendingTransaction',
+  differenceInSol: number,
+  feeInSol: number,
+  label: string,
+  icon: string,
+  message?: string,
+}
+
+interface SentTransaction extends TransactionRequestStatus {
+  type: 'SentTransaction',
+  differenceInSol: number,
+  feeInSol: number,
+  label: string,
+  icon: string,
+  message?: string,
 }
 
 interface TransactionDetailsResponse {
@@ -119,6 +138,7 @@ export default function TransactionRequestScreen({ route }) {
       label: simulatingTransaction.label,
       icon: simulatingTransaction.icon,
       message: simulatingTransaction.message,
+      transaction,
     } as SimulatedTransaction);
   }
 
@@ -132,6 +152,33 @@ export default function TransactionRequestScreen({ route }) {
     simulateTransactionWhenWeShould();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status.type]);
+
+  async function sendTransaction(simulatedTransaction: SimulatedTransaction) {
+    const { transaction } = simulatedTransaction;
+
+    setStatus({
+      type: 'SendingTransaction',
+      differenceInSol: simulatedTransaction.differenceInSol,
+      feeInSol: simulatedTransaction.feeInSol,
+      label: simulatedTransaction.label,
+      icon: simulatedTransaction.icon,
+      message: simulatedTransaction.message,
+    } as SendingTransaction);
+
+    const signature = await connection.sendTransaction(transaction, [keypair]);
+    console.log('Sent transaction', signature);
+    await connection.confirmTransaction(signature, 'confirmed');
+    console.log('Confirmed transaction', signature);
+
+    setStatus({
+      type: 'SentTransaction',
+      differenceInSol: simulatedTransaction.differenceInSol,
+      feeInSol: simulatedTransaction.feeInSol,
+      label: simulatedTransaction.label,
+      icon: simulatedTransaction.icon,
+      message: simulatedTransaction.message,
+    } as SentTransaction);
+  }
 
   if (status.type === 'FetchingDetails') {
     return (
@@ -207,13 +254,57 @@ export default function TransactionRequestScreen({ route }) {
           <Text style={styles.titleText}>{simulatedTransaction.label}</Text>
           {simulatedTransaction.message && <Text style={styles.highlightedText}>{simulatedTransaction.message}</Text>}
 
-          <View style={{ height: 40 }} />
+          <View style={styles.heightSpacer} />
 
           <Text style={[styles.highlightedText]}>{Math.abs(simulatedTransaction.differenceInSol)} SOL</Text>
           <Text>Fee: {simulatedTransaction.feeInSol} SOL</Text>
         </View>
         <View style={styles.bottomView}>
-          <Button title="Send" />
+          <Button title="Send" onPress={() => sendTransaction(simulatedTransaction)} />
+        </View>
+      </View>
+    );
+  }
+
+  if (status.type === 'SendingTransaction') {
+    const sendingTransaction = status as SendingTransaction;
+
+    return (
+      <View style={styles.container}>
+        <View style={styles.mainView}>
+          <ImageUri uri={sendingTransaction.icon} height={200} width={200} />
+          <Text style={styles.titleText}>{sendingTransaction.label}</Text>
+          {sendingTransaction.message && <Text style={styles.highlightedText}>{sendingTransaction.message}</Text>}
+
+          <View style={styles.heightSpacer} />
+
+          <Text style={[styles.highlightedText]}>{Math.abs(sendingTransaction.differenceInSol)} SOL</Text>
+          <Text>Fee: {sendingTransaction.feeInSol} SOL</Text>
+        </View>
+        <View style={styles.bottomView}>
+          <ActivityIndicator />
+        </View>
+      </View>
+    );
+  }
+
+  if (status.type === 'SentTransaction') {
+    const sentTransaction = status as SentTransaction;
+
+    return (
+      <View style={styles.container}>
+        <View style={styles.mainView}>
+          <ImageUri uri={sentTransaction.icon} height={200} width={200} />
+          <Text style={styles.titleText}>{sentTransaction.label}</Text>
+          {sentTransaction.message && <Text style={styles.highlightedText}>{sentTransaction.message}</Text>}
+
+          <View style={styles.heightSpacer} />
+
+          <Text style={[styles.highlightedText]}>{Math.abs(sentTransaction.differenceInSol)} SOL</Text>
+          <Text>Fee: {sentTransaction.feeInSol} SOL</Text>
+        </View>
+        <View style={styles.bottomView}>
+          <Text>All done! ✅</Text>
         </View>
       </View>
     );
@@ -248,4 +339,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
   },
+  heightSpacer: {
+    height: 40,
+  }
 });

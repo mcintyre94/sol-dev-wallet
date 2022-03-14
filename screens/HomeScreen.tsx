@@ -10,7 +10,7 @@ export default function HomeScreen({ navigation }) {
         onPress={() =>
           navigation.navigate('TransactionRequest', {
             solanaPayUrl:
-              'https://solana-pay-nextjs-git-cm-next-api-get-deploy-mcintyre1994.vercel.app/api?recipient=9AUvdLggr4DezH1FEHFBVqQPNUF9q6sZGTYoPMyum2sk&amount=1&reference=48grsY5YrtBik6A7FWu3etvKHbqnYKdxqJ5wvALYRFnP&label=callum%27s cookies&message=thanks%21',
+              'https://solana-pay-nextjs-git-cm-next-api-get-deploy-mcintyre1994.vercel.app/api?recipient=9AUvdLggr4DezH1FEHFBVqQPNUF9q6sZGTYoPMyum2sk&amount=0.1234&reference=GMJuFXzLvvoty5p6La9H7tuTx6p2CSxbZtepa1aBA1q9&label=callum%27s cookies&message=enjoy your cookies%21',
           })
         }
       />
