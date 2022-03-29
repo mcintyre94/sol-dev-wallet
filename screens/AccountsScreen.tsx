@@ -3,9 +3,9 @@ import base58 from 'bs58';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Button, StyleSheet, Text, TextInput, View } from 'react-native';
 import EncryptedStorage from 'react-native-encrypted-storage';
-import truncateMiddle from 'truncate-middle';
+import { truncateAddress } from '../utils/addressUtils';
 
-interface Account {
+export interface Account {
   publicKey: string;
   privateKey: string;
   name: string;
@@ -21,6 +21,7 @@ export default function Accounts() {
 
   async function getAccounts() {
     const fetchedAccounts = await EncryptedStorage.getItem('accounts');
+    console.log({ fetchedAccounts });
 
     if (fetchedAccounts) {
       setAccounts(JSON.parse(fetchedAccounts));
@@ -51,14 +52,14 @@ export default function Accounts() {
       return;
     }
 
-    if (accounts?.findIndex(account => account.publicKey === resolvedNewPublicKey) !== -1) {
+    if (accounts && accounts.findIndex(account => account.publicKey === resolvedNewPublicKey) !== -1) {
       setNewAccountError('Account already exists');
       return;
     }
 
     setAddingNewAccount(true);
 
-    const index = (accounts?.length) || 0 + 1;
+    const index = ((accounts?.length) || 0) + 1;
 
     const newAccount: Account = {
       publicKey: resolvedNewPublicKey,
@@ -77,6 +78,8 @@ export default function Accounts() {
     setAccounts(newAccounts);
     setAddingNewAccount(false);
     setNewAccountError(undefined);
+    setNewName(undefined);
+    setNewPrivateKey(undefined);
   }
 
   async function deleteAccount(publicKey: string) {
@@ -92,7 +95,7 @@ export default function Accounts() {
         {accounts?.map((account, index) => (
           <View key={index} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 5 }}>
             <Text style={{ fontWeight: 'bold' }}>{account.name}</Text>
-            <Text>{truncateMiddle(account.publicKey, 6, 6, '...')}</Text>
+            <Text>{truncateAddress(account.publicKey)}</Text>
             <Button title="Delete" onPress={() => deleteAccount(account.publicKey)} />
           </View>
         ))}
@@ -114,6 +117,7 @@ export default function Accounts() {
         <View style={styles.formElement}>
           <Text>Private Key</Text>
           <TextInput
+            secureTextEntry={true}
             style={{ height: 40, borderWidth: 1, borderColor: 'gray', padding: 5 }}
             placeholder="Enter private key"
             onChangeText={resolvePublicKey}
@@ -123,7 +127,7 @@ export default function Accounts() {
 
         {resolvedNewPublicKey && (
           <View style={styles.formElement}>
-            <Text>✅ Wallet address: {truncateMiddle(resolvedNewPublicKey, 6, 6, '...')}</Text>
+            <Text>✅ Wallet address: {truncateAddress(resolvedNewPublicKey)}</Text>
           </View>
         )}
 

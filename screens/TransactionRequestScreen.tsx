@@ -5,6 +5,10 @@ import { View, Text, StyleSheet, ActivityIndicator, Button } from 'react-native'
 import { Buffer } from 'buffer';
 import base58 from 'bs58';
 import ImageUri from '../components/ImageUri';
+import EncryptedStorage from 'react-native-encrypted-storage';
+import { Account } from './AccountsScreen';
+import FetchedDetailsSnippet from '../components/FetchedDetailsSnippet';
+import { truncateAddress } from '../utils/addressUtils';
 
 interface TransactionRequestStatus {
   type: 'FetchingDetails' | 'FetchedDetails' | 'FetchingTransaction' | 'SimulatingTransaction' | 'SimulatedTransaction' | 'SendingTransaction' | 'SentTransaction',
@@ -14,7 +18,7 @@ const FetchingDetails: TransactionRequestStatus = {
   type: 'FetchingDetails',
 };
 
-interface FetchedDetails extends TransactionRequestStatus {
+export interface FetchedDetails extends TransactionRequestStatus {
   type: 'FetchedDetails',
   label: string,
   icon: string
@@ -72,17 +76,28 @@ interface TransactionResponse {
   message?: string,
 }
 
-// const publicKey = 'Fkc4FN7PPhyGsAcHPW3dBBJ4BvtYkDr2rBFBgFpvy3nB';
 const connection = new Connection(clusterApiUrl('devnet'));
-const secretKey = '...';
-const keypair = Keypair.fromSecretKey(base58.decode(secretKey));
 
 export default function TransactionRequestScreen({ route }) {
   const [status, setStatus] = useState(FetchingDetails);
 
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [selectedAccount, setSelectedAccount] = useState<Account | undefined>(undefined);
+  const keypair = selectedAccount ? Keypair.fromSecretKey(base58.decode(selectedAccount.privateKey)) : undefined;
+
   const { solanaPayUrl } = route.params;
   const decodedUrl = decodeURIComponent(solanaPayUrl);
   const { hostname } = new URL(decodedUrl);
+
+  async function getWalletAccounts() {
+    const accountsRaw = await EncryptedStorage.getItem('accounts')
+    if (!accountsRaw) { return; }
+    setAccounts(JSON.parse(accountsRaw));
+  }
+
+  useEffect(() => {
+    getWalletAccounts();
+  }, []);
 
   async function fetchDetails() {
     const response = await axios.get(decodedUrl);
@@ -98,12 +113,21 @@ export default function TransactionRequestScreen({ route }) {
   async function fetchTransaction(fetchedDetails: FetchedDetails) {
     setStatus({ type: 'FetchingTransaction', label: fetchedDetails.label, icon: fetchedDetails.icon } as FetchingTransaction);
 
+    if (!keypair) {
+      console.error('no keypair in fetchTransaction');
+      return;
+    }
+
     const response = await axios.post(decodedUrl, {
       account: keypair.publicKey,
     });
 
     const { transaction, message } = await response.data as TransactionResponse;
     const parsedTransaction = Transaction.from(Buffer.from(transaction, 'base64'));
+    console.log('fetched transaction...', parsedTransaction.signatures);
+
+    parsedTransaction.serialize({ requireAllSignatures: false });
+    console.log('able to serialize fetched transaction');
 
     setStatus({
       type: 'SimulatingTransaction',
@@ -117,23 +141,35 @@ export default function TransactionRequestScreen({ route }) {
   async function simulateTransaction(simulatingTransaction: SimulatingTransaction) {
     const { transaction } = simulatingTransaction;
 
+    console.log(JSON.stringify(transaction, null, 2));
+
     const balance = await connection.getBalance(keypair.publicKey, 'confirmed');
     const { value: fee } = await connection.getFeeForMessage(simulatingTransaction.transaction.compileMessage(), 'confirmed');
-    const { value: { accounts } } = await connection.simulateTransaction(transaction, [keypair], [keypair.publicKey]);
 
-    console.log({ balance, fee, accounts });
+    console.log('simulating transaction with account', keypair.publicKey.toBase58());
 
-    if (!accounts || accounts.length === 0 || accounts[0] === null) { throw new Error('No accounts'); }
+    transaction.partialSign(keypair);
+    transaction.serialize();
+    console.log('able to serialize transaction after partialSign in simulateTransaction');
 
-    const newBalance = accounts[0].lamports;
-    const difference = newBalance - balance + fee;
+    const keys = transaction.instructions.flatMap(i => i.keys).map(k => k.pubkey);
+    const uniqueKeys = Array(...new Set(keys));
+    console.log({ uniqueKeys })
+    // const { value: { accounts: simulatorAccounts } } = await connection.simulateTransaction(transaction, undefined, uniqueKeys);
+
+    // console.log(JSON.stringify({ balance, fee, simulatorAccounts }, null, 2));
+
+    // if (!simulatorAccounts || simulatorAccounts.length === 0 || simulatorAccounts[0] === null) { throw new Error('No accounts'); }
+
+    // const newBalance = simulatorAccounts[0].lamports;
+    // const difference = newBalance - balance + fee;
 
     const feeInSol = fee / LAMPORTS_PER_SOL;
-    const differenceInSol = difference / LAMPORTS_PER_SOL;
+    // const differenceInSol = difference / LAMPORTS_PER_SOL;
 
     setStatus({
       type: 'SimulatedTransaction',
-      differenceInSol,
+      differenceInSol: 0,
       feeInSol,
       label: simulatingTransaction.label,
       icon: simulatingTransaction.icon,
@@ -165,7 +201,13 @@ export default function TransactionRequestScreen({ route }) {
       message: simulatedTransaction.message,
     } as SendingTransaction);
 
-    const signature = await connection.sendTransaction(transaction, [keypair]);
+    const serialized = transaction.serialize({
+      requireAllSignatures: true,
+      verifySignatures: true,
+    });
+    console.log('serialized!');
+
+    const signature = await connection.sendEncodedTransaction(serialized.toString('base64'));
     console.log('Sent transaction', signature);
     await connection.confirmTransaction(signature, 'confirmed');
     console.log('Confirmed transaction', signature);
@@ -194,17 +236,13 @@ export default function TransactionRequestScreen({ route }) {
 
     return (
       <View style={styles.container}>
-        <View style={styles.mainView}>
-          <ImageUri uri={fetchedDetails.icon} height={200} width={200} />
-          <Text style={styles.titleText}>{fetchedDetails.label}</Text>
-        </View>
-        <View style={styles.bottomView}>
-          <Button
-            title="Fetch Transaction"
-            onPress={() => fetchTransaction(fetchedDetails)}
-          />
-          <Text>This will send your public key to {hostname}</Text>
-        </View>
+        <FetchedDetailsSnippet
+          accounts={accounts}
+          fetchedDetails={fetchedDetails}
+          hostname={hostname}
+          fetchTransaction={fetchTransaction}
+          setSelectedAccount={setSelectedAccount}
+        />
       </View>
     );
   }
@@ -256,7 +294,9 @@ export default function TransactionRequestScreen({ route }) {
 
           <View style={styles.heightSpacer} />
 
-          <Text style={[styles.highlightedText]}>{Math.abs(simulatedTransaction.differenceInSol)} SOL</Text>
+          {/* <Text style={[styles.highlightedText]}>{Math.abs(simulatedTransaction.differenceInSol)} SOL</Text> */}
+          {selectedAccount && <Text>Account: {selectedAccount.name} ({truncateAddress(selectedAccount.publicKey)})</Text>}
+          <Text style={[styles.highlightedText]}>Okay the simulator bit isn't done yet...</Text>
           <Text>Fee: {simulatedTransaction.feeInSol} SOL</Text>
         </View>
         <View style={styles.bottomView}>
@@ -278,7 +318,8 @@ export default function TransactionRequestScreen({ route }) {
 
           <View style={styles.heightSpacer} />
 
-          <Text style={[styles.highlightedText]}>{Math.abs(sendingTransaction.differenceInSol)} SOL</Text>
+          {/* <Text style={[styles.highlightedText]}>{Math.abs(sendingTransaction.differenceInSol)} SOL</Text> */}
+          <Text style={[styles.highlightedText]}>Okay the simulator bit isn't done yet...</Text>
           <Text>Fee: {sendingTransaction.feeInSol} SOL</Text>
         </View>
         <View style={styles.bottomView}>
@@ -300,8 +341,8 @@ export default function TransactionRequestScreen({ route }) {
 
           <View style={styles.heightSpacer} />
 
-          <Text style={[styles.highlightedText]}>{Math.abs(sentTransaction.differenceInSol)} SOL</Text>
-          <Text>Fee: {sentTransaction.feeInSol} SOL</Text>
+          {/* <Text style={[styles.highlightedText]}>{Math.abs(sentTransaction.differenceInSol)} SOL</Text> */}
+          {/* <Text>Fee: {sentTransaction.feeInSol} SOL</Text> */}
         </View>
         <View style={styles.bottomView}>
           <Text>All done! ✅</Text>
@@ -317,7 +358,7 @@ export default function TransactionRequestScreen({ route }) {
   );
 }
 
-const styles = StyleSheet.create({
+export const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 10,
@@ -341,5 +382,5 @@ const styles = StyleSheet.create({
   },
   heightSpacer: {
     height: 40,
-  }
+  },
 });
