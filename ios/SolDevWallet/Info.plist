@@ -51,5 +51,7 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
+	<key>NSCameraUsageDescription</key>
+	<string>The camera is used only for scanning QR codes. Images are never saved or sent anywhere.</string>
 </dict>
 </plist>

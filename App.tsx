@@ -3,6 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import HomeScreen from './screens/HomeScreen';
 import TransactionRequestScreen from './screens/TransactionRequestScreen';
+import QRCodeScanScreen from "./screens/QRCodeScanScreen";
 
 // Seems to be required for react-native-svg for some reason
 // Put it here because you get a cycle warning if this is in index.js
@@ -31,6 +32,11 @@ function App() {
           name="Accounts"
           component={AccountsScreen}
           options={{ title: 'Accounts' }}
+        />
+        <Stack.Screen
+          name="QRCodeScan"
+          component={QRCodeScanScreen}
+          options={{ title: 'Scan QR Code' }}
         />
       </Stack.Navigator>
     </NavigationContainer>
